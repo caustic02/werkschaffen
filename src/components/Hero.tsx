@@ -10,7 +10,7 @@ export default function Hero() {
         <h1 className="ws-hero-question">
           Build what?
           <br />
-          Serve whom?
+          <span className="ws-hero-question-italic">Serve whom?</span>
         </h1>
       </div>
       <a href="#manifesto" className="ws-hero-scroll">

@@ -175,6 +175,14 @@ export default function PointCloud() {
           text.setAttribute("font-weight", String(node.fontWeight));
           text.setAttribute("opacity", String(node.currentOpacity));
           text.setAttribute("data-id", node.id);
+          // Fill color based on fontWeight
+          const fill =
+            node.fontWeight >= 600
+              ? "#DDD9D1"
+              : node.fontWeight >= 400
+                ? "#B8B3A9"
+                : "#908A82";
+          text.setAttribute("fill", fill);
           text.textContent = node.label;
           svg.appendChild(text);
         }

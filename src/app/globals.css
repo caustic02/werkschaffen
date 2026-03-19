@@ -95,13 +95,26 @@ a:hover {
 
 .ws-nav-links a {
   color: var(--fg2);
-  text-transform: lowercase;
+  text-transform: uppercase;
   transition: color 0.2s;
 }
 
 .ws-nav-links a:hover {
   color: var(--fg);
   opacity: 1;
+}
+
+.ws-nav-links a.ws-nav-connect {
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.ws-nav-links a.ws-nav-connect:hover {
+  background: var(--accent);
+  color: var(--fg);
 }
 
 .ws-nav-hamburger {
@@ -160,7 +173,7 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 1.2rem;
   letter-spacing: 0.08em;
-  text-transform: lowercase;
+  text-transform: uppercase;
 }
 
 /* ── HERO ── */
@@ -170,25 +183,30 @@ a:hover {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  padding: 0 40px 80px;
   overflow: hidden;
 }
 
 .ws-hero-content {
   position: relative;
   z-index: 2;
-  text-align: center;
+  text-align: left;
   pointer-events: none;
 }
 
 .ws-hero-question {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: clamp(1.6rem, 4vw, 3rem);
-  font-weight: 700;
+  font-weight: 300;
   color: var(--fg);
   letter-spacing: 0.02em;
   line-height: 1.3;
+}
+
+.ws-hero-question-italic {
+  font-style: italic;
+  color: var(--accent);
 }
 
 .ws-hero-scroll {
@@ -251,9 +269,7 @@ a:hover {
 .ws-cloud-node {
   cursor: grab;
   user-select: none;
-  fill: var(--fg);
   font-family: var(--font-mono);
-  transition: opacity 0.1s;
 }
 
 .ws-cloud-node:active {
@@ -279,12 +295,14 @@ a:hover {
   line-height: 1.7;
   text-align: justify;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, visibility 0.3s;
 }
 
 .ws-cloud-banner.visible {
   opacity: 1;
+  visibility: visible;
 }
 
 .ws-cloud-banner-title {

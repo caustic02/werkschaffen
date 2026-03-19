@@ -30,7 +30,12 @@ export default function Nav() {
         <ul className="ws-nav-links">
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
-              <a href={item.href}>{item.label}</a>
+              <a
+                href={item.href}
+                className={item.label === "Connect" ? "ws-nav-connect" : undefined}
+              >
+                {item.label}
+              </a>
             </li>
           ))}
         </ul>
