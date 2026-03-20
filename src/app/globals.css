@@ -268,3 +268,11 @@ body {
   border-radius: 2px;
   display: block;
 }
+
+.association-thumb video {
+  width: 200px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 2px;
+  display: block;
+}

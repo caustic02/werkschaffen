@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { NODE_VIDEOS, type AssociationItem } from '@/lib/association-videos';
 
 const QUERY_POOLS: Record<string, string[]> = {
   werk: [
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
           if (!res.ok) return [];
           const data = await res.json();
           return (data.results || []).map((r: Record<string, unknown>) => ({
+            type: 'image' as const,
             src: (r.urls as Record<string, string>).small,
             alt: (r.alt_description as string) || query,
           }));
@@ -78,7 +80,18 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    return NextResponse.json(results.flat());
+    // Mix videos into the image results
+    const images: AssociationItem[] = results.flat();
+    const videos = NODE_VIDEOS[nodeId] || [];
+    // Interleave: insert videos at roughly even intervals
+    const combined = [...images];
+    const step = Math.max(1, Math.floor(images.length / (videos.length + 1)));
+    videos.forEach((v, i) => {
+      const pos = Math.min(combined.length, step * (i + 1));
+      combined.splice(pos, 0, v);
+    });
+
+    return NextResponse.json(combined);
   } catch {
     return NextResponse.json([]);
   }

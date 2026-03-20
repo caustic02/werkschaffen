@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import type { AssociationItem } from '@/lib/association-videos';
 
-export interface AssociationImage {
-  src: string;
-  alt: string;
-}
+export type { AssociationItem };
 
 interface AssociationFieldProps {
-  images: AssociationImage[];
+  images: AssociationItem[];
   onClose: () => void;
 }
 
@@ -113,17 +111,29 @@ export default function AssociationField({ images, onClose }: AssociationFieldPr
 
   return (
     <div className="association-field">
-      {images.slice(0, positions.length).map((img, i) => (
+      {images.slice(0, positions.length).map((item, i) => (
         <div
-          key={`${img.src}-${i}`}
+          key={`${item.src}-${i}`}
           className={`association-thumb${visibleSet.has(i) ? ' visible' : ''}`}
           style={{ left: positions[i].x, top: positions[i].y }}
           onClick={(e) => {
             e.stopPropagation();
-            console.log(img);
+            console.log(item);
           }}
         >
-          <img src={img.src} alt={img.alt || ''} loading="lazy" />
+          {item.type === 'video' ? (
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={item.thumb || ''}
+            >
+              <source src={item.src} type="video/mp4" />
+            </video>
+          ) : (
+            <img src={item.src} alt={item.alt || ''} loading="lazy" />
+          )}
         </div>
       ))}
     </div>

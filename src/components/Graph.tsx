@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { NODES, EDGES, FIELDS, type GraphNode } from '@/lib/graph-data';
-import AssociationField, { type AssociationImage } from '@/components/AssociationField';
+import AssociationField, { type AssociationItem } from '@/components/AssociationField';
 
 type SimNode = GraphNode & d3.SimulationNodeDatum;
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
@@ -40,7 +40,7 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
 
   // Layer 1 state
   const [currentLayer, setCurrentLayer] = useState<0 | 1>(0);
-  const [associationImages, setAssociationImages] = useState<AssociationImage[]>([]);
+  const [associationImages, setAssociationItems] = useState<AssociationItem[]>([]);
   const currentLayerRef = useRef<0 | 1>(0);
 
   // D3 handle refs for close handler
@@ -59,7 +59,7 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
 
     currentLayerRef.current = 0;
     setCurrentLayer(0);
-    setAssociationImages([]);
+    setAssociationItems([]);
 
     const sim = simRef.current;
     const nodeEls = nodeElsRef.current;
@@ -289,7 +289,7 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
                 body: JSON.stringify({ nodeId: d.id }),
               })
                 .then(res => res.json())
-                .then(images => setAssociationImages(images))
+                .then(images => setAssociationItems(images))
                 .catch(() => handleAssociationCloseRef.current());
 
               return; // Skip normal restoration
