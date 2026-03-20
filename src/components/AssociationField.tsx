@@ -128,11 +128,6 @@ export default function AssociationField({ images, onClose, status }: Associatio
               style={{ left: positions[i].x, top: positions[i].y }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (item.url) {
-                  window.open(item.url, '_blank', 'noopener');
-                } else {
-                  console.log(item);
-                }
               }}
             >
               {item.type === 'video' ? (

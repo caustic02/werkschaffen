@@ -7,7 +7,7 @@ You operate in two registers simultaneously:
 EPISTEMIC: How do we come to know this? What does attending to it reveal?
 ONTOLOGICAL: What kind of thing is this? What is its being?
 
-Your job is to translate these questions into IMAGE search queries. You are searching a photo database (Unsplash). The queries must find photographs, not articles. Think visually. Think materially. Think specifically.
+Your job is to translate these questions into IMAGE search queries. You are searching the visual internet. The queries must find photographs, not articles. Think visually. Think materially. Think specifically.
 
 When given a node word and its gravitational fields, generate exactly 6 image search queries that span at least 4 different visual domains.
 
@@ -70,31 +70,33 @@ async function callAnthropic(body: Record<string, unknown>) {
   return res.json();
 }
 
-async function searchUnsplash(query: string, accessKey: string): Promise<ImageResult[]> {
-  const res = await fetch(
-    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=4&orientation=landscape`,
-    { headers: { Authorization: `Client-ID ${accessKey}` } }
-  );
-  if (!res.ok) {
-    console.error(`Unsplash error for "${query}": ${res.status}`);
+async function searchGoogleImages(query: string, apiKey: string, cseId: string): Promise<ImageResult[]> {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cseId}&q=${encodeURIComponent(query)}&searchType=image&num=4&imgSize=large`
+    );
+    if (!res.ok) {
+      console.error(`Google CSE error for "${query}": ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    return (data.items || []).map((item: Record<string, unknown>) => {
+      const image = (item.image || {}) as Record<string, string>;
+      return {
+        type: 'image' as const,
+        id: item.link as string,
+        src: item.link as string,
+        thumb: image.thumbnailLink || (item.link as string),
+        alt: (item.title as string) || '',
+        credit: (item.displayLink as string) || '',
+        url: image.contextLink || (item.link as string),
+        query,
+      };
+    });
+  } catch (err) {
+    console.error(`Google CSE fetch failed for "${query}":`, err);
     return [];
   }
-  const data = await res.json();
-  return (data.results || []).map((photo: Record<string, unknown>) => {
-    const urls = photo.urls as Record<string, string>;
-    const user = photo.user as Record<string, string>;
-    const links = photo.links as Record<string, string>;
-    return {
-      type: 'image' as const,
-      id: photo.id as string,
-      src: urls.regular,
-      thumb: urls.small,
-      alt: (photo.alt_description as string) || (photo.description as string) || query,
-      credit: user.name || 'Unknown',
-      url: links.html,
-      query,
-    };
-  });
 }
 
 export async function POST(req: NextRequest) {
@@ -102,9 +104,10 @@ export async function POST(req: NextRequest) {
   if (!anthropicKey) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
-  const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
-  if (!unsplashKey) {
-    return NextResponse.json({ error: 'UNSPLASH_ACCESS_KEY not configured' }, { status: 500 });
+  const googleKey = process.env.GOOGLE_CSE_KEY;
+  const googleCseId = process.env.GOOGLE_CSE_ID;
+  if (!googleKey || !googleCseId) {
+    return NextResponse.json({ error: 'GOOGLE_CSE_KEY or GOOGLE_CSE_ID not configured' }, { status: 500 });
   }
 
   try {
@@ -147,18 +150,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Search Unsplash for each query in parallel
+    // Step 2: Search Google Images for each query in parallel
     const searchResults = await Promise.all(
-      queries.map(query => searchUnsplash(query, unsplashKey))
+      queries.map(query => searchGoogleImages(query, googleKey, googleCseId))
     );
 
-    // Step 3: Flatten, deduplicate by photo id, cap at 20
+    // Step 3: Flatten, deduplicate by src URL, cap at 20
     const allResults: ImageResult[] = [];
-    const seenIds = new Set<string>();
+    const seenSrcs = new Set<string>();
     for (const batch of searchResults) {
       for (const photo of batch) {
-        if (!seenIds.has(photo.id)) {
-          seenIds.add(photo.id);
+        if (!seenSrcs.has(photo.src)) {
+          seenSrcs.add(photo.src);
           allResults.push(photo);
         }
       }
