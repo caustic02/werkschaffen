@@ -53,6 +53,15 @@ interface ImageResult {
   query: string;
 }
 
+interface UnsplashPhoto {
+  id: string;
+  urls: { regular: string; small: string };
+  alt_description: string | null;
+  description: string | null;
+  user: { name: string };
+  links: { html: string };
+}
+
 async function callAnthropic(body: Record<string, unknown>) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -70,31 +79,29 @@ async function callAnthropic(body: Record<string, unknown>) {
   return res.json();
 }
 
-async function searchGoogleImages(query: string, apiKey: string, cseId: string): Promise<ImageResult[]> {
+async function searchUnsplash(query: string, accessKey: string): Promise<ImageResult[]> {
   try {
     const res = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cseId}&q=${encodeURIComponent(query)}&searchType=image&num=4&imgSize=large&siteSearchFilter=e`
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=4&orientation=landscape`,
+      { headers: { Authorization: `Client-ID ${accessKey}` } }
     );
     if (!res.ok) {
-      console.error(`Google CSE error for "${query}": ${res.status}`);
+      console.error(`Unsplash error for "${query}": ${res.status}`);
       return [];
     }
     const data = await res.json();
-    return (data.items || []).map((item: Record<string, unknown>) => {
-      const image = (item.image || {}) as Record<string, string>;
-      return {
-        type: 'image' as const,
-        id: item.link as string,
-        src: item.link as string,
-        thumb: image.thumbnailLink || (item.link as string),
-        alt: (item.title as string) || '',
-        credit: (item.displayLink as string) || '',
-        url: image.contextLink || (item.link as string),
-        query,
-      };
-    });
+    return (data.results || []).map((photo: UnsplashPhoto) => ({
+      type: 'image' as const,
+      id: photo.id,
+      src: photo.urls.regular,
+      thumb: photo.urls.small,
+      alt: photo.alt_description || photo.description || '',
+      credit: photo.user.name || '',
+      url: photo.links.html,
+      query,
+    }));
   } catch (err) {
-    console.error(`Google CSE fetch failed for "${query}":`, err);
+    console.error(`Unsplash fetch failed for "${query}":`, err);
     return [];
   }
 }
@@ -104,10 +111,9 @@ export async function POST(req: NextRequest) {
   if (!anthropicKey) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
-  const googleKey = process.env.GOOGLE_CSE_KEY;
-  const googleCseId = process.env.GOOGLE_CSE_ID;
-  if (!googleKey || !googleCseId) {
-    return NextResponse.json({ error: 'GOOGLE_CSE_KEY or GOOGLE_CSE_ID not configured' }, { status: 500 });
+  const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+  if (!unsplashKey) {
+    return NextResponse.json({ error: 'UNSPLASH_ACCESS_KEY not configured' }, { status: 500 });
   }
 
   try {
@@ -150,18 +156,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Search Google Images for each query in parallel
+    // Step 2: Search Unsplash for each query in parallel
     const searchResults = await Promise.all(
-      queries.map(query => searchGoogleImages(query, googleKey, googleCseId))
+      queries.map(query => searchUnsplash(query, unsplashKey))
     );
 
-    // Step 3: Flatten, deduplicate by src URL, cap at 20
+    // Step 3: Flatten, deduplicate by id, cap at 20
     const allResults: ImageResult[] = [];
-    const seenSrcs = new Set<string>();
+    const seenIds = new Set<string>();
     for (const batch of searchResults) {
       for (const photo of batch) {
-        if (!seenSrcs.has(photo.src)) {
-          seenSrcs.add(photo.src);
+        if (!seenIds.has(photo.id)) {
+          seenIds.add(photo.id);
           allResults.push(photo);
         }
       }
