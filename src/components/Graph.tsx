@@ -42,6 +42,8 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
   const [currentLayer, setCurrentLayer] = useState<0 | 1>(0);
   const [associationImages, setAssociationItems] = useState<AssociationItem[]>([]);
   const [discoverStatus, setDiscoverStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [activeNodeLabel, setActiveNodeLabel] = useState<string>('');
+  const [activeNodeFields, setActiveNodeFields] = useState<string[]>([]);
   const currentLayerRef = useRef<0 | 1>(0);
 
   // D3 handle refs for close handler
@@ -62,6 +64,8 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
     setCurrentLayer(0);
     setAssociationItems([]);
     setDiscoverStatus('idle');
+    setActiveNodeLabel('');
+    setActiveNodeFields([]);
 
     const sim = simRef.current;
     const nodeEls = nodeElsRef.current;
@@ -282,6 +286,8 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
               frozenNodeRef.current = { node: d, el: this as SVGGElement };
               currentLayerRef.current = 1;
               setCurrentLayer(1);
+              setActiveNodeLabel(d.label);
+              setActiveNodeFields(d.fields.map(f => FIELDS[f]?.label || f));
 
               // Fetch discovery results
               setDiscoverStatus('loading');
@@ -386,6 +392,8 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
           images={associationImages}
           onClose={handleAssociationClose}
           status={discoverStatus}
+          nodeLabel={activeNodeLabel}
+          nodeFields={activeNodeFields}
         />
       )}
     </div>
