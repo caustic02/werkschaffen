@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { NODES, EDGES, FIELDS, type GraphNode, type GraphEdge } from '@/lib/graph-data';
+import { NODES, EDGES, FIELDS, type GraphNode } from '@/lib/graph-data';
+import AssociationField, { type AssociationImage } from '@/components/AssociationField';
 
 type SimNode = GraphNode & d3.SimulationNodeDatum;
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
@@ -37,8 +38,69 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const callbacksRef = useRef({ onNodeClick, onBackgroundClick });
 
+  // Layer 1 state
+  const [currentLayer, setCurrentLayer] = useState<0 | 1>(0);
+  const [associationImages, setAssociationImages] = useState<AssociationImage[]>([]);
+  const currentLayerRef = useRef<0 | 1>(0);
+
+  // D3 handle refs for close handler
+  const simRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
+  const nodeElsRef = useRef<d3.Selection<SVGGElement, SimNode, SVGGElement, unknown> | null>(null);
+  const linkElsRef = useRef<d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null>(null);
+  const frozenNodeRef = useRef<{ node: SimNode; el: SVGGElement } | null>(null);
+
   useEffect(() => {
     callbacksRef.current = { onNodeClick, onBackgroundClick };
+  });
+
+  // Close handler for Layer 1
+  const handleAssociationClose = useCallback(() => {
+    if (currentLayerRef.current !== 1) return;
+
+    currentLayerRef.current = 0;
+    setCurrentLayer(0);
+    setAssociationImages([]);
+
+    const sim = simRef.current;
+    const nodeEls = nodeElsRef.current;
+    const linkEls = linkElsRef.current;
+    const frozen = frozenNodeRef.current;
+
+    if (frozen) {
+      frozen.node.fx = null;
+      frozen.node.fy = null;
+      frozenNodeRef.current = null;
+    }
+
+    // Restore node opacities
+    if (nodeEls) {
+      nodeEls.select('.graph-label')
+        .transition().duration(500)
+        .attr('opacity', 1)
+        .attr('font-size', (d: SimNode) => getNodeSize(d))
+        .attr('font-weight', (d: SimNode) => getNodeWeight(d))
+        .attr('fill', (d: SimNode) => getNodeFill(d))
+        .attr('font-style', (d: SimNode) => d.de ? 'italic' : 'normal');
+    }
+
+    // Restore edge opacities
+    if (linkEls) {
+      linkEls.transition().duration(500)
+        .attr('stroke', '#5A5550')
+        .attr('opacity', (l: SimLink) => l.strength > 0.6 ? 0.25 : 0.12)
+        .attr('stroke-width', (l: SimLink) => l.strength > 0.6 ? 1 : 0.5);
+    }
+
+    // Restart simulation
+    if (sim) {
+      sim.alphaTarget(0.3).restart();
+      setTimeout(() => sim.alphaTarget(0), 500);
+    }
+  }, []);
+
+  const handleAssociationCloseRef = useRef(handleAssociationClose);
+  useEffect(() => {
+    handleAssociationCloseRef.current = handleAssociationClose;
   });
 
   useEffect(() => {
@@ -50,6 +112,9 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
     let currentSim: d3.Simulation<SimNode, SimLink> | null = null;
 
     function buildGraph() {
+      // Don't rebuild during Layer 1
+      if (currentLayerRef.current === 1) return;
+
       if (currentSim) currentSim.stop();
       svg.selectAll('*').remove();
 
@@ -125,6 +190,9 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
         }).strength(0.015));
 
       currentSim = sim;
+      simRef.current = sim;
+      nodeElsRef.current = nodeEls as unknown as d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>;
+      linkElsRef.current = linkEls as unknown as d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>;
 
       // Drag behavior
       let isDragging = false;
@@ -183,9 +251,54 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
         })
         .on('end', function (ev, d) {
           if (!ev.active) sim.alphaTarget(0);
+          isDragging = false;
+
+          // Check Layer 1 activation for werk/schaffen
+          const isLayerNode = d.id === 'werk' || d.id === 'schaffen';
+          if (isLayerNode && currentLayerRef.current === 0) {
+            const dist = Math.sqrt((d.x! - cx) ** 2 + (d.y! - cy) ** 2);
+            if (dist >= ISO_FULL) {
+              // ACTIVATE LAYER 1
+              sim.stop();
+
+              // Dim all nodes to 15% opacity
+              nodeEls.select('.graph-label')
+                .transition().duration(500)
+                .attr('opacity', 0.15);
+
+              // Frozen node: 40% opacity, orange, enlarged
+              d3.select(this).select('.graph-label')
+                .transition().duration(500)
+                .attr('opacity', 0.4)
+                .attr('fill', '#D4500A')
+                .attr('font-size', getNodeSize(d) * 1.3);
+
+              // Dim all edges to 5%
+              linkEls.transition().duration(500)
+                .attr('opacity', 0.05);
+
+              // Store frozen state (node stays pinned at release position)
+              frozenNodeRef.current = { node: d, el: this as SVGGElement };
+              currentLayerRef.current = 1;
+              setCurrentLayer(1);
+
+              // Fetch association images
+              fetch('/api/associate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nodeId: d.id }),
+              })
+                .then(res => res.json())
+                .then(images => setAssociationImages(images))
+                .catch(() => handleAssociationCloseRef.current());
+
+              return; // Skip normal restoration
+            }
+          }
+
+          // Normal behavior: unpin and restore
           d.fx = null;
           d.fy = null;
-          isDragging = false;
 
           const rest = getNodeFill(d);
           d3.select(this).select('.graph-label')
@@ -204,9 +317,10 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
         })
       );
 
-      // Click to open panel
+      // Click to open panel (disabled during Layer 1)
       nodeEls.on('click', function (ev: MouseEvent, d: SimNode) {
         if (isDragging) return;
+        if (currentLayerRef.current === 1) return;
         ev.stopPropagation();
         callbacksRef.current.onNodeClick(d);
       });
@@ -228,10 +342,14 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
     }
 
     buildGraph();
-    window.addEventListener('resize', buildGraph);
+    const handleResize = () => {
+      if (currentLayerRef.current === 1) return;
+      buildGraph();
+    };
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', buildGraph);
+      window.removeEventListener('resize', handleResize);
       if (currentSim) currentSim.stop();
       svg.selectAll('*').remove();
     };
@@ -240,6 +358,9 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
   return (
     <div ref={containerRef} className="graph-container">
       <svg ref={svgRef} className="graph-svg" />
+      {currentLayer === 1 && (
+        <AssociationField images={associationImages} onClose={handleAssociationClose} />
+      )}
     </div>
   );
 }

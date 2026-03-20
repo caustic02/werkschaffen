@@ -235,3 +235,36 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ── Association Field (Layer 1) ── */
+.association-field {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.association-thumb {
+  position: absolute;
+  pointer-events: all;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.association-thumb.visible {
+  opacity: 1;
+}
+
+.association-thumb:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+.association-thumb img {
+  width: 200px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 2px;
+  display: block;
+}
