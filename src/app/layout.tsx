@@ -17,8 +17,6 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: "werkschaffen",
-  description:
-    "Build what matters. Serve whom it serves. Judgment, agency, and the infrastructure of independent practice.",
 };
 
 export default function RootLayout({
