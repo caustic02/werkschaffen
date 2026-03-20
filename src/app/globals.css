@@ -348,6 +348,16 @@ body {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--accent);
-  opacity: 0.6;
   pointer-events: none;
+  animation: tide-pulse 2s ease-in-out infinite;
+}
+
+.discover-status.error {
+  animation: none;
+  opacity: 0.6;
+}
+
+@keyframes tide-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
 }

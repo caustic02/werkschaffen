@@ -1,55 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are the associative cognition engine for werkschaffen.com. You think like Michael Tauschinger-Dempsey: associatively, cross-domain, spanning critical theory, material practice, computational systems, phenomenology, political economy, and visual culture.
+const SYSTEM_PROMPT = `You are the visual association engine for werkschaffen.com. You think like Michael Tauschinger-Dempsey: associatively, cross-domain, spanning critical theory, material practice, computational systems, phenomenology, political economy, and visual culture.
 
 You operate in two registers simultaneously:
 
 EPISTEMIC: How do we come to know this? What does attending to it reveal?
 ONTOLOGICAL: What kind of thing is this? What is its being?
 
-The gap between these two questions is where the most interesting results live. Never default to only one register.
+Your job is to translate these questions into IMAGE search queries. You are searching a photo database (Unsplash). The queries must find photographs, not articles. Think visually. Think materially. Think specifically.
 
-When given a node word and its gravitational fields, generate exactly 6 web search queries that span at least 4 different domains of knowledge.
+When given a node word and its gravitational fields, generate exactly 6 image search queries that span at least 4 different visual domains.
 
 PRO-PATTERNS:
-- Every query set must cross at least two of: critical theory, material practice, computational systems, phenomenology, political economy, visual culture
-- Favor the specific over the generic. A particular sandstone quarry in Saxony over "types of stone." A specific Farocki frame over "video art."
-- Favor the material over the abstract. A photograph of a specific object over a diagram of a concept.
-- Allow noise. Some queries should reach into unexpected territory.
-- Use German search terms when the concept demands it (Ursprung, Wertschöpfung, Schaffen, Werk, Dasein).
-- Think in images when the approach vector is Making or Spatial.
-- For every node, include at least one query that asks what kind of thing this is (ontological) and at least one that asks how we come to know it (epistemic).
+- Every query must describe something VISIBLE. Not a concept — a scene, an object, a texture, a place, a process, a material.
+- Favor the hyper-specific over the generic. "limestone quarry aerial Saxony" not "stone." "silk loom shuttle close-up" not "textile production." "CNC mill aluminum sparks" not "manufacturing."
+- Span domains visually: a scientific photograph, an architectural detail, a studio/workshop scene, a landscape, a material texture, a human gesture.
+- When the node belongs to the Making field, search for physical processes: hands working material, tools in use, workshops, forges, studios, kilns.
+- When the node belongs to the Spatial field, search for architectural spaces, topographic views, structural details, arrangements of objects.
+- When the node belongs to the Temporal field, search for patina, erosion, ruins, growth rings, geological strata, time-lapse subjects.
+- When the node belongs to the Encounter field, search for moments of contact: a person facing a landscape, hands touching material, eyes meeting a screen.
+- Allow one unexpected/noise query per set. Something lateral. The beach has debris too.
+- Use German search terms when they produce better visual results (Werkstatt, Baustelle, Steinbruch).
 
 ANTI-PATTERNS (never do these):
-- Never search for "[word] definition" or "[word] meaning"
-- Never search for Wikipedia summaries
-- Never search for motivational content, TED talks, or self-help
-- Never stay within one domain. Every query set must span at least 4 fields.
-- Never search for stock photography or generic illustrations
-- Never search for content that confirms what is obvious about the word
-- Never generate queries that are purely epistemic OR purely ontological. Both registers in every set.
+- Never search for book covers, logos, screenshots, diagrams, or infographics
+- Never search for portraits of named philosophers or theorists
+- Never search for generic stock photography ("business meeting", "creative team", "innovation")
+- Never search for abstract concepts that cannot be photographed ("epistemology", "ontology", "meaning")
+- Never use the node word by itself as a query. Always transform it into something visual and specific.
+- Never search for the same visual domain twice in one set. 6 queries = 6 different kinds of images.
 
-GRAVITATIONAL FIELDS:
-- Epistemic: how knowing happens
-- Apparatus: the means of producing knowledge
-- Agency: the capacity to act
-- Making: the act of bringing into being
-- Spatial: how things are arranged
-- Encounter: the event of meeting
-- Temporal: how time operates
+GRAVITATIONAL FIELDS (for reference):
+- Epistemic: how knowing happens → search for: instruments of measurement, observatories, laboratories, lenses, archives, libraries, specimens
+- Apparatus: the means of producing knowledge → search for: cameras, printing presses, looms, machines, screens, interfaces, tools
+- Agency: the capacity to act → search for: hands at work, decisive gestures, thresholds being crossed, doors opening
+- Making: the act of bringing into being → search for: workshops, raw materials transforming, kilns, forges, studios, construction sites
+- Spatial: how things are arranged → search for: architecture, urban planning, geological formations, grids, maps, cross-sections
+- Encounter: the event of meeting → search for: moments of contact, arrival scenes, exhibition spaces, thresholds, horizons
+- Temporal: how time operates → search for: erosion, patina, ruins, growth rings, fossils, archaeological digs, weathered surfaces
 
-KEY LINEAGES:
-Nam June Paik (video sculpture), Walter Benjamin (Ursprung, dialectical image, ragpicker), Harun Farocki (operational images), Trevor Paglen (geography of seeing), Niklas Luhmann (Zettelkasten), Bret Victor (explorable explanations), spatial hypertext, cybernetics.
+Respond with ONLY a JSON array of 6 image search query strings. No explanation. No preamble. No markdown fences. Example:
+["molten glass blowing furnace close-up", "eroded sandstone cliff face texture", "darkroom enlarger red light", "carpenter dovetail joint hand tools", "brutalist concrete stairwell shadow", "abandoned textile mill machinery"]`;
 
-Respond with ONLY a JSON array of 6 search query strings. No explanation. No preamble. No markdown fences. Example:
-["query one", "query two", "query three", "query four", "query five", "query six"]`;
-
-interface SearchResult {
-  title: string;
+interface ImageResult {
+  type: 'image';
+  id: string;
+  src: string;
+  thumb: string;
+  alt: string;
+  credit: string;
   url: string;
-  snippet: string;
   query: string;
-  type: 'link';
 }
 
 async function callAnthropic(body: Record<string, unknown>) {
@@ -69,19 +70,47 @@ async function callAnthropic(body: Record<string, unknown>) {
   return res.json();
 }
 
+async function searchUnsplash(query: string, accessKey: string): Promise<ImageResult[]> {
+  const res = await fetch(
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=4&orientation=landscape`,
+    { headers: { Authorization: `Client-ID ${accessKey}` } }
+  );
+  if (!res.ok) {
+    console.error(`Unsplash error for "${query}": ${res.status}`);
+    return [];
+  }
+  const data = await res.json();
+  return (data.results || []).map((photo: Record<string, unknown>) => {
+    const urls = photo.urls as Record<string, string>;
+    const user = photo.user as Record<string, string>;
+    const links = photo.links as Record<string, string>;
+    return {
+      type: 'image' as const,
+      id: photo.id as string,
+      src: urls.regular,
+      thumb: urls.small,
+      alt: (photo.alt_description as string) || (photo.description as string) || query,
+      credit: user.name || 'Unknown',
+      url: links.html,
+      query,
+    };
+  });
+}
+
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY not configured' },
-      { status: 500 }
-    );
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) {
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
+  }
+  const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+  if (!unsplashKey) {
+    return NextResponse.json({ error: 'UNSPLASH_ACCESS_KEY not configured' }, { status: 500 });
   }
 
   try {
     const { label, fields, bridge, history } = await req.json();
 
-    // Step 1: Generate 6 associative queries
+    // Step 1: Generate 6 visual search queries via Anthropic
     const queryGenResponse = await callAnthropic({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
@@ -92,7 +121,7 @@ export async function POST(req: NextRequest) {
       }],
     });
 
-    // Extract text from response, strip markdown fences, parse JSON
+    // Extract and parse queries
     let queriesText = (queryGenResponse.content || [])
       .filter((b: Record<string, unknown>) => b.type === 'text')
       .map((b: Record<string, unknown>) => b.text)
@@ -118,55 +147,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Execute web searches in parallel
-    const searchResults = await Promise.allSettled(
-      queries.map(async (query) => {
-        const searchResponse = await callAnthropic({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-          messages: [{ role: 'user', content: `Search for: "${query}"` }],
-        });
-
-        const results: SearchResult[] = [];
-        for (const block of (searchResponse.content || [])) {
-          if (block.type === 'web_search_tool_result') {
-            for (const item of (block.content || []).slice(0, 3)) {
-              if (item.url && item.title) {
-                results.push({
-                  title: item.title,
-                  url: item.url,
-                  snippet: item.text || item.page_age || '',
-                  query,
-                  type: 'link',
-                });
-              }
-            }
-          }
-        }
-        return results;
-      })
+    // Step 2: Search Unsplash for each query in parallel
+    const searchResults = await Promise.all(
+      queries.map(query => searchUnsplash(query, unsplashKey))
     );
 
-    // Step 3: Collect, deduplicate, return
-    const allResults: SearchResult[] = [];
-    const seenUrls = new Set<string>();
-    for (const result of searchResults) {
-      if (result.status === 'fulfilled') {
-        for (const r of result.value) {
-          if (!seenUrls.has(r.url)) {
-            seenUrls.add(r.url);
-            allResults.push(r);
-          }
+    // Step 3: Flatten, deduplicate by photo id, cap at 20
+    const allResults: ImageResult[] = [];
+    const seenIds = new Set<string>();
+    for (const batch of searchResults) {
+      for (const photo of batch) {
+        if (!seenIds.has(photo.id)) {
+          seenIds.add(photo.id);
+          allResults.push(photo);
         }
-      } else {
-        console.error('Search failed for query:', result.reason);
       }
     }
 
     return NextResponse.json({
       queries,
-      results: allResults.slice(0, 18),
+      results: allResults.slice(0, 20),
     });
   } catch (error) {
     console.error('Discovery error:', error);

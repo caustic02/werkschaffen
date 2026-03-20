@@ -1,5 +1,6 @@
 export interface AssociationItem {
   type: 'image' | 'video' | 'link';
+  id?: string;
   src?: string;
   thumb?: string;
   alt?: string;
@@ -7,6 +8,7 @@ export interface AssociationItem {
   url?: string;
   snippet?: string;
   query?: string;
+  credit?: string;
 }
 
 export const NODE_VIDEOS: Record<string, AssociationItem[]> = {

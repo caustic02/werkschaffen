@@ -115,7 +115,7 @@ export default function AssociationField({ images, onClose, status }: Associatio
         <div className="discover-status">the tide is coming in...</div>
       )}
       {status === 'error' && (
-        <div className="discover-status">the tide retreated. try again.</div>
+        <div className="discover-status error">the tide retreated.</div>
       )}
 
       {/* Results */}
@@ -128,7 +128,7 @@ export default function AssociationField({ images, onClose, status }: Associatio
               style={{ left: positions[i].x, top: positions[i].y }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (item.type === 'link' && item.url) {
+                if (item.url) {
                   window.open(item.url, '_blank', 'noopener');
                 } else {
                   console.log(item);
