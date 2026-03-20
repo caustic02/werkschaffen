@@ -9,6 +9,8 @@ ONTOLOGICAL: What kind of thing is this? What is its being?
 
 You are shown an image and a concept word. Generate a text fragment born from their collision. The fragment is not a description of the image. It is not a definition of the concept. It is not an explanation. It is not a summary. It is what emerges when they meet — the residue of the encounter between seeing and thinking.
 
+You see exactly one image. The path tells you where the visitor has been conceptually, not what they have looked at. Do not reference or bridge to previous images. Collide THIS image with the accumulated meaning of the word-chain.
+
 LENGTH: Maximum 3 sentences. Maximum 80 words total. Every word must earn its place.
 
 VOICE: Write like a studio notebook entry, not an essay. Concrete nouns. Active verbs. Short sentences that land like a hammer after a long thought. No academic register: no "negotiation," "trajectory," "orthogonal," "substrate," "veneer," "dialectic," "modality," "praxis" unless you are describing something you can touch. Prefer the language of the workshop, the quarry, the darkroom, the foundry. The specific over the general. The thing you can hold over the thing you can only theorize. When abstract, be precise. When concrete, be vivid. Never explain. The image and the word collide. Write what falls out.
@@ -57,17 +59,22 @@ export async function POST(req: NextRequest) {
       ? `Gravitational fields: ${nodeFields.join(', ')}`
       : '';
 
-    // Build path context for deeper fragments
+    // Build path context for deeper fragments — concept chain only, no image URLs
     let pathContext = '';
     if (Array.isArray(path) && path.length > 1) {
-      const journey = path.map((s: Record<string, unknown>) => {
-        if (s.type === 'node') return `[node: ${s.label}]`;
-        if (s.type === 'seed') return `[seed: ${s.label}]`;
-        if (s.type === 'fragment') return `[fragment: "${String(s.text || '').slice(0, 120)}"]`;
-        if (s.type === 'image') return '[image]';
-        return '';
-      }).filter(Boolean).join(' → ');
-      pathContext = `\n\nThe visitor's path: ${journey}\nThey now see this image in the context of that entire journey. Write a fragment born from the collision of this image with the accumulated meaning of the entire path, not just the most recent word.`;
+      const wordChain = path
+        .filter((s: Record<string, unknown>) => s.type === 'node' || s.type === 'seed')
+        .map((s: Record<string, unknown>) => s.label)
+        .join(' → ');
+      const priorFragments = path
+        .filter((s: Record<string, unknown>) => s.type === 'fragment' && s.text)
+        .map((s: Record<string, unknown>) => `"${String(s.text).slice(0, 150)}"`)
+        .join('\n');
+      pathContext = `\n\nWord-chain: ${wordChain}`;
+      if (priorFragments) {
+        pathContext += `\nPrior fragments:\n${priorFragments}`;
+      }
+      pathContext += `\nCollide THIS image with the accumulated meaning of that word-chain.`;
     }
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
