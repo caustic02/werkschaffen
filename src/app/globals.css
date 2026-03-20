@@ -411,7 +411,7 @@ body {
 
 .collision-node-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent);
@@ -437,14 +437,20 @@ body {
 
 .collision-keyword {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: lowercase;
   color: var(--fg2);
   opacity: 0.5;
-  padding: 3px 9px;
+  padding: 5px 13px;
   border: 1px solid var(--dim);
   border-radius: 1px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.collision-keyword:hover {
+  opacity: 0.8;
 }
 
 .collision-error-text {
