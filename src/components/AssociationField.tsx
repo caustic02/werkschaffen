@@ -183,7 +183,7 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
                 'association-thumb',
                 visibleSet.has(i) ? 'visible' : '',
                 item.type === 'link' ? 'link-card' : '',
-                collision?.index === i ? 'colliding' : '',
+                collision?.index === i && collision.status === 'loading' ? 'colliding' : '',
               ].filter(Boolean).join(' ')}
               style={{ left: positions[i].x, top: positions[i].y }}
               onClick={(e) => handleThumbClick(e, i, item)}

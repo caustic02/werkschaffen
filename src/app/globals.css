@@ -421,9 +421,9 @@ body {
 
 .collision-fragment {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 19px;
   font-weight: 300;
-  line-height: 1.9;
+  line-height: 1.75;
   color: var(--fg);
   margin: 0;
 }
