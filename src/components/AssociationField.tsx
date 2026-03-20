@@ -5,6 +5,15 @@ import type { AssociationItem } from '@/lib/association-videos';
 
 export type { AssociationItem };
 
+export interface PathStep {
+  type: 'node' | 'image' | 'fragment' | 'seed';
+  label?: string;
+  url?: string;
+  text?: string;
+  keywords?: string[];
+  fields?: string[];
+}
+
 interface CollisionState {
   index: number;
   status: 'loading' | 'done' | 'error';
@@ -45,20 +54,17 @@ function computePositions(count: number): Position[] {
       const x = Math.max(0, Math.min(W - THUMB_W, baseX));
       const y = Math.max(0, Math.min(H - THUMB_H, baseY));
 
-      // Skip center clear zone (300px radius)
       const thumbCx = x + THUMB_W / 2;
       const thumbCy = y + THUMB_H / 2;
       const dist = Math.sqrt((thumbCx - cx) ** 2 + (thumbCy - cy) ** 2);
       if (dist < 300) continue;
 
-      // Skip werkschaffen mark area (top-left 200x60)
       if (x < 200 && y < 60) continue;
 
       candidates.push({ x, y });
     }
   }
 
-  // Shuffle for random stagger order
   for (let i = candidates.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
@@ -68,22 +74,40 @@ function computePositions(count: number): Position[] {
 }
 
 export default function AssociationField({ images, onClose, status, nodeLabel, nodeFields }: AssociationFieldProps) {
+  // Display state — shadows props, can be replaced by seed clicks
+  const [displayImages, setDisplayImages] = useState<AssociationItem[]>([]);
+  const [displayLabel, setDisplayLabel] = useState(nodeLabel || '');
+  const [path, setPath] = useState<PathStep[]>([]);
+  const [internalStatus, setInternalStatus] = useState<'idle' | 'loading' | 'error' | null>(null);
+
+  // Grid state
   const [positions, setPositions] = useState<Position[]>([]);
   const [visibleSet, setVisibleSet] = useState<Set<number>>(new Set());
   const [collision, setCollision] = useState<CollisionState | null>(null);
+
   const onCloseRef = useRef(onClose);
   const collisionRef = useRef(collision);
+  const effectiveStatus = internalStatus ?? status;
 
   useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => { collisionRef.current = collision; }, [collision]);
 
-  // Compute positions when images arrive
+  // Initialize from props when Layer 1 images arrive
   useEffect(() => {
     if (images.length === 0) return;
-    setPositions(computePositions(images.length));
+    setDisplayImages(images);
+    setDisplayLabel(nodeLabel || '');
+    setPath([{ type: 'node', label: nodeLabel || '', fields: nodeFields }]);
+    setInternalStatus(null);
+  }, [images, nodeLabel, nodeFields]);
+
+  // Recompute positions when display images change
+  useEffect(() => {
+    if (displayImages.length === 0) return;
+    setPositions(computePositions(displayImages.length));
     setVisibleSet(new Set());
     setCollision(null);
-  }, [images]);
+  }, [displayImages]);
 
   // Staggered fade-in
   useEffect(() => {
@@ -103,7 +127,7 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
       if ((e.target as HTMLElement).closest('.association-thumb')) return;
       if ((e.target as SVGElement).closest?.('.graph-node')) return;
       if ((e.target as HTMLElement).closest('.collision-panel')) return;
-      // Clicking outside closes collision overlay first, then field
+      if ((e.target as HTMLElement).closest('.breadcrumb-trail')) return;
       if (collisionRef.current) {
         setCollision(null);
         return;
@@ -119,7 +143,6 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
         }
       }
     };
-    // Small delay to avoid capturing drag-end mouseup
     const timer = setTimeout(() => {
       document.addEventListener('click', handleClick);
       document.addEventListener('keydown', handleKey);
@@ -134,13 +157,15 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
   function handleThumbClick(e: React.MouseEvent, i: number, item: AssociationItem) {
     e.stopPropagation();
 
-    // Toggle off if already active for this image
     if (collision?.index === i) {
       setCollision(null);
       return;
     }
 
-    if (!nodeLabel || !item.src) return;
+    if (!displayLabel || !item.src) return;
+
+    // Build path with image step for this click
+    const clickPath = [...path, { type: 'image' as const, url: item.src }];
 
     setCollision({ index: i, status: 'loading' });
 
@@ -149,8 +174,9 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         imageUrl: item.src,
-        nodeLabel,
+        nodeLabel: displayLabel,
         nodeFields: nodeFields || [],
+        path: clickPath,
       }),
     })
       .then(res => { if (!res.ok) throw new Error(`${res.status}`); return res.json(); })
@@ -163,22 +189,86 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
       .catch(() => setCollision({ index: i, status: 'error' }));
   }
 
+  function handleSeedClick(e: React.MouseEvent, keyword: string) {
+    e.stopPropagation();
+
+    // Extend path: add fragment step (if we have one) + seed step
+    const newPath = [...path];
+    if (collision?.status === 'done' && collision.fragment) {
+      newPath.push({
+        type: 'fragment',
+        text: collision.fragment,
+        keywords: collision.keywords,
+      });
+    }
+    newPath.push({ type: 'seed', label: keyword });
+
+    // Clear current state, start loading new images
+    setCollision(null);
+    setDisplayImages([]);
+    setPath(newPath);
+    setDisplayLabel(keyword);
+    setInternalStatus('loading');
+
+    fetch('/api/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: keyword,
+        fields: nodeFields || [],
+        bridge: false,
+        history: [],
+        path: newPath,
+      }),
+    })
+      .then(res => { if (!res.ok) throw new Error(`${res.status}`); return res.json(); })
+      .then(data => {
+        const results = data.results || [];
+        if (results.length > 0) {
+          setDisplayImages(results);
+          setInternalStatus('idle');
+        } else {
+          setInternalStatus('error');
+        }
+      })
+      .catch(() => setInternalStatus('error'));
+  }
+
+  // Breadcrumb: all node and seed steps
+  const breadcrumbs = path.filter(s => s.type === 'node' || s.type === 'seed');
+
   return (
     <>
+      {/* Breadcrumb trail — visible once a seed has been clicked */}
+      {breadcrumbs.length > 1 && (
+        <div className="breadcrumb-trail">
+          {breadcrumbs.map((step, i) => (
+            <span key={i}>
+              {i > 0 && <span className="breadcrumb-sep">{'\u2192'}</span>}
+              <span className="breadcrumb-label">{step.label}</span>
+            </span>
+          ))}
+          <span
+            className="breadcrumb-close"
+            onClick={(e) => { e.stopPropagation(); onCloseRef.current(); }}
+          >{'\u00d7'}</span>
+        </div>
+      )}
+
       {/* Status indicator */}
-      {status === 'loading' && (
+      {effectiveStatus === 'loading' && (
         <div className="discover-status">the tide is coming in...</div>
       )}
-      {status === 'error' && (
+      {effectiveStatus === 'error' && (
         <div className="discover-status error">the tide retreated.</div>
       )}
 
-      {/* Results */}
-      {images.length > 0 && positions.length > 0 && (
+      {/* Image grid */}
+      {displayImages.length > 0 && positions.length > 0 && (
         <div className="association-field">
-          {images.slice(0, positions.length).map((item, i) => (
+          {displayImages.slice(0, positions.length).map((item, i) => (
             <div
-              key={`${item.url || item.src}-${i}`}
+              key={`${item.id || item.src}-${i}`}
               className={[
                 'association-thumb',
                 visibleSet.has(i) ? 'visible' : '',
@@ -210,18 +300,12 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
         </div>
       )}
 
-      {/* Layer 2: collision overlay — fixed panel over the grid */}
+      {/* Collision overlay (Layer 2 + 3) */}
       {collision && collision.status !== 'loading' && (
-        <div
-          className="collision-overlay"
-          onClick={() => setCollision(null)}
-        >
-          <div
-            className="collision-panel"
-            onClick={e => e.stopPropagation()}
-          >
-            {nodeLabel && (
-              <div className="collision-node-label">{nodeLabel}</div>
+        <div className="collision-overlay" onClick={() => setCollision(null)}>
+          <div className="collision-panel" onClick={e => e.stopPropagation()}>
+            {displayLabel && (
+              <div className="collision-node-label">{displayLabel}</div>
             )}
             {collision.status === 'done' && (
               <>
@@ -229,14 +313,20 @@ export default function AssociationField({ images, onClose, status, nodeLabel, n
                 {collision.keywords && collision.keywords.length > 0 && (
                   <div className="collision-keywords">
                     {collision.keywords.map((kw, ki) => (
-                      <span key={ki} className="collision-keyword">{kw}</span>
+                      <span
+                        key={ki}
+                        className="collision-keyword"
+                        onClick={(e) => handleSeedClick(e, kw)}
+                      >
+                        {kw}
+                      </span>
                     ))}
                   </div>
                 )}
               </>
             )}
             {collision.status === 'error' && (
-              <p className="collision-fragment collision-error-text">—</p>
+              <p className="collision-fragment collision-error-text">{'\u2014'}</p>
             )}
           </div>
         </div>

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { imageUrl, nodeLabel, nodeFields } = await req.json();
+    const { imageUrl, nodeLabel, nodeFields, path } = await req.json();
 
     if (!imageUrl || !nodeLabel) {
       return NextResponse.json({ error: 'imageUrl and nodeLabel are required' }, { status: 400 });
@@ -56,6 +56,19 @@ export async function POST(req: NextRequest) {
     const fieldsText = Array.isArray(nodeFields) && nodeFields.length > 0
       ? `Gravitational fields: ${nodeFields.join(', ')}`
       : '';
+
+    // Build path context for deeper fragments
+    let pathContext = '';
+    if (Array.isArray(path) && path.length > 1) {
+      const journey = path.map((s: Record<string, unknown>) => {
+        if (s.type === 'node') return `[node: ${s.label}]`;
+        if (s.type === 'seed') return `[seed: ${s.label}]`;
+        if (s.type === 'fragment') return `[fragment: "${String(s.text || '').slice(0, 120)}"]`;
+        if (s.type === 'image') return '[image]';
+        return '';
+      }).filter(Boolean).join(' → ');
+      pathContext = `\n\nThe visitor's path: ${journey}\nThey now see this image in the context of that entire journey. Write a fragment born from the collision of this image with the accumulated meaning of the entire path, not just the most recent word.`;
+    }
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -80,7 +93,7 @@ export async function POST(req: NextRequest) {
             },
             {
               type: 'text',
-              text: `Concept node: ${nodeLabel}\n${fieldsText}\n\nGenerate the collision fragment.`,
+              text: `Concept node: ${nodeLabel}\n${fieldsText}${pathContext}\n\nGenerate the collision fragment.`,
             },
           ],
         }],

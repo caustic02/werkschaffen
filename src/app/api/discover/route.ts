@@ -117,7 +117,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { label, fields, bridge, history } = await req.json();
+    const { label, fields, bridge, history, path } = await req.json();
+
+    // Build path context for deeper seed-driven queries
+    let pathContext = '';
+    if (Array.isArray(path) && path.length > 1) {
+      const journey = path
+        .filter((s: Record<string, unknown>) => s.type === 'node' || s.type === 'seed')
+        .map((s: Record<string, unknown>) => s.label)
+        .join(' → ');
+      pathContext = `\nPath: ${journey}\nThe visitor arrived at "${label}" through this journey. Generate image queries that go DEEPER, not broader. The accumulated context should make results more specific and more unexpected than the bare word alone.`;
+    }
 
     // Step 1: Generate 6 visual search queries via Anthropic
     const queryGenResponse = await callAnthropic({
@@ -126,7 +136,7 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',
-        content: `Node: ${label}\nFields: ${(fields || []).join(', ')}\nBridge node: ${bridge ? 'yes' : 'no'}\nHistory: ${(history || []).length > 0 ? history.join(' → ') : 'none'}`,
+        content: `Node: ${label}\nFields: ${(fields || []).join(', ')}\nBridge node: ${bridge ? 'yes' : 'no'}\nHistory: ${(history || []).length > 0 ? history.join(' → ') : 'none'}${pathContext}`,
       }],
     });
 
