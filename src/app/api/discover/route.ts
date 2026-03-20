@@ -73,7 +73,7 @@ async function callAnthropic(body: Record<string, unknown>) {
 async function searchGoogleImages(query: string, apiKey: string, cseId: string): Promise<ImageResult[]> {
   try {
     const res = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cseId}&q=${encodeURIComponent(query)}&searchType=image&num=4&imgSize=large`
+      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cseId}&q=${encodeURIComponent(query)}&searchType=image&num=4&imgSize=large&siteSearchFilter=e`
     );
     if (!res.ok) {
       console.error(`Google CSE error for "${query}": ${res.status}`);
