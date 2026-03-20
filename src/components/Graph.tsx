@@ -41,6 +41,7 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
   // Layer 1 state
   const [currentLayer, setCurrentLayer] = useState<0 | 1>(0);
   const [associationImages, setAssociationItems] = useState<AssociationItem[]>([]);
+  const [discoverStatus, setDiscoverStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const currentLayerRef = useRef<0 | 1>(0);
 
   // D3 handle refs for close handler
@@ -60,6 +61,7 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
     currentLayerRef.current = 0;
     setCurrentLayer(0);
     setAssociationItems([]);
+    setDiscoverStatus('idle');
 
     const sim = simRef.current;
     const nodeEls = nodeElsRef.current;
@@ -253,9 +255,8 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
           if (!ev.active) sim.alphaTarget(0);
           isDragging = false;
 
-          // Check Layer 1 activation for werk/schaffen
-          const isLayerNode = d.id === 'werk' || d.id === 'schaffen';
-          if (isLayerNode && currentLayerRef.current === 0) {
+          // Check Layer 1 activation — any node past threshold
+          if (currentLayerRef.current === 0) {
             const dist = Math.sqrt((d.x! - cx) ** 2 + (d.y! - cy) ** 2);
             if (dist >= ISO_FULL) {
               // ACTIVATE LAYER 1
@@ -282,15 +283,37 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
               currentLayerRef.current = 1;
               setCurrentLayer(1);
 
-              // Fetch association images
-              fetch('/api/associate', {
+              // Fetch discovery results
+              setDiscoverStatus('loading');
+              fetch('/api/discover', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nodeId: d.id }),
+                body: JSON.stringify({
+                  node: d.id,
+                  label: d.label,
+                  fields: d.fields.map(f => FIELDS[f]?.label || f),
+                  bridge: d.bridge || false,
+                  history: [],
+                }),
               })
-                .then(res => res.json())
-                .then(images => setAssociationItems(images))
-                .catch(() => handleAssociationCloseRef.current());
+                .then(res => {
+                  if (!res.ok) throw new Error(`${res.status}`);
+                  return res.json();
+                })
+                .then(data => {
+                  const results = data.results || [];
+                  if (results.length === 0) {
+                    setDiscoverStatus('error');
+                    setTimeout(() => handleAssociationCloseRef.current(), 3000);
+                  } else {
+                    setAssociationItems(results);
+                    setDiscoverStatus('idle');
+                  }
+                })
+                .catch(() => {
+                  setDiscoverStatus('error');
+                  setTimeout(() => handleAssociationCloseRef.current(), 3000);
+                });
 
               return; // Skip normal restoration
             }
@@ -359,7 +382,11 @@ export default function Graph({ onNodeClick, onBackgroundClick }: GraphProps) {
     <div ref={containerRef} className="graph-container">
       <svg ref={svgRef} className="graph-svg" />
       {currentLayer === 1 && (
-        <AssociationField images={associationImages} onClose={handleAssociationClose} />
+        <AssociationField
+          images={associationImages}
+          onClose={handleAssociationClose}
+          status={discoverStatus}
+        />
       )}
     </div>
   );

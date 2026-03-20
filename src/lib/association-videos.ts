@@ -1,8 +1,12 @@
 export interface AssociationItem {
-  type: 'image' | 'video';
-  src: string;
+  type: 'image' | 'video' | 'link';
+  src?: string;
   thumb?: string;
-  alt: string;
+  alt?: string;
+  title?: string;
+  url?: string;
+  snippet?: string;
+  query?: string;
 }
 
 export const NODE_VIDEOS: Record<string, AssociationItem[]> = {

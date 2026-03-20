@@ -8,6 +8,7 @@ export type { AssociationItem };
 interface AssociationFieldProps {
   images: AssociationItem[];
   onClose: () => void;
+  status?: 'idle' | 'loading' | 'error';
 }
 
 interface Position {
@@ -57,7 +58,7 @@ function computePositions(count: number): Position[] {
   return candidates.slice(0, count);
 }
 
-export default function AssociationField({ images, onClose }: AssociationFieldProps) {
+export default function AssociationField({ images, onClose, status }: AssociationFieldProps) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [visibleSet, setVisibleSet] = useState<Set<number>>(new Set());
   const onCloseRef = useRef(onClose);
@@ -107,35 +108,60 @@ export default function AssociationField({ images, onClose }: AssociationFieldPr
     };
   }, []);
 
-  if (images.length === 0 || positions.length === 0) return null;
-
   return (
-    <div className="association-field">
-      {images.slice(0, positions.length).map((item, i) => (
-        <div
-          key={`${item.src}-${i}`}
-          className={`association-thumb${visibleSet.has(i) ? ' visible' : ''}`}
-          style={{ left: positions[i].x, top: positions[i].y }}
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log(item);
-          }}
-        >
-          {item.type === 'video' ? (
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
-              poster={item.thumb || ''}
+    <>
+      {/* Status indicator */}
+      {status === 'loading' && (
+        <div className="discover-status">the tide is coming in...</div>
+      )}
+      {status === 'error' && (
+        <div className="discover-status">the tide retreated. try again.</div>
+      )}
+
+      {/* Results */}
+      {images.length > 0 && positions.length > 0 && (
+        <div className="association-field">
+          {images.slice(0, positions.length).map((item, i) => (
+            <div
+              key={`${item.url || item.src}-${i}`}
+              className={`association-thumb${visibleSet.has(i) ? ' visible' : ''}${item.type === 'link' ? ' link-card' : ''}`}
+              style={{ left: positions[i].x, top: positions[i].y }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item.type === 'link' && item.url) {
+                  window.open(item.url, '_blank', 'noopener');
+                } else {
+                  console.log(item);
+                }
+              }}
             >
-              <source src={item.src} type="video/mp4" />
-            </video>
-          ) : (
-            <img src={item.src} alt={item.alt || ''} loading="lazy" />
-          )}
+              {item.type === 'video' ? (
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster={item.thumb || ''}
+                >
+                  <source src={item.src} type="video/mp4" />
+                </video>
+              ) : item.type === 'link' ? (
+                <div className="link-card-inner">
+                  <div className="link-card-title">{item.title}</div>
+                  {item.snippet && (
+                    <div className="link-card-snippet">{item.snippet}</div>
+                  )}
+                  {item.query && (
+                    <div className="link-card-query">{item.query}</div>
+                  )}
+                </div>
+              ) : (
+                <img src={item.src} alt={item.alt || ''} loading="lazy" />
+              )}
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
