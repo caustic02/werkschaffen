@@ -43,6 +43,8 @@ function computePositions(count: number): Position[] {
   const cellW = W / cols;
   const cellH = H / rows;
   const THUMB_W = 200, THUMB_H = 130;
+  // Nearest thumbnail edge must stay this far from viewport center so the pulled node label shows through
+  const CENTER_GAP = 200;
 
   const candidates: Position[] = [];
 
@@ -54,10 +56,11 @@ function computePositions(count: number): Position[] {
       const x = Math.max(0, Math.min(W - THUMB_W, baseX));
       const y = Math.max(0, Math.min(H - THUMB_H, baseY));
 
-      const thumbCx = x + THUMB_W / 2;
-      const thumbCy = y + THUMB_H / 2;
-      const dist = Math.sqrt((thumbCx - cx) ** 2 + (thumbCy - cy) ** 2);
-      if (dist < 300) continue;
+      // Nearest point on the thumbnail rectangle to the viewport center
+      const nearX = Math.max(x, Math.min(cx, x + THUMB_W));
+      const nearY = Math.max(y, Math.min(cy, y + THUMB_H));
+      const dist = Math.sqrt((nearX - cx) ** 2 + (nearY - cy) ** 2);
+      if (dist < CENTER_GAP) continue;
 
       if (x < 200 && y < 60) continue;
 
